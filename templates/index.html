@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Doğal dil işleme ile Türkçe film önerileri bulun. BBY261 Python, Gensim ve Flask projesi.">
+  <title>Film Pusulası | Türkçe Film Önerileri</title>
+  <style>
+    :root{color-scheme:dark;--bg:#10111c;--panel:#1c1e31;--line:#34374e;--soft:#b4bbd0;--violet:#947af8}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 80% 0,#242142 0,transparent 42%),var(--bg);color:#f5f3ff;font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif}
+    .page{max-width:920px;margin:auto;padding:58px 22px 65px}
+    header{text-align:center;margin-bottom:30px}h1{font-size:clamp(34px,6vw,57px);line-height:1.12;letter-spacing:-1.5px;margin:9px 0 12px}h1 span{color:#b2a1ff}
+    .eyebrow{color:#bdb0ff;letter-spacing:2px;font-size:12px;text-transform:uppercase;font-weight:800}
+    .lead{color:var(--soft);max-width:630px;margin:0 auto}
+    .search-card{background:rgba(28,30,49,.92);padding:24px;border-radius:21px;border:1px solid var(--line);box-shadow:0 20px 65px #090a1445}
+    label{display:block;font-weight:700;margin-bottom:9px}textarea{display:block;width:100%;height:120px;resize:vertical;background:#111525;border:1px solid #49516b;border-radius:13px;color:#fff;font:inherit;padding:17px;outline:none}
+    textarea:focus{border-color:#a38fff;box-shadow:0 0 0 3px #947af826}textarea::placeholder{color:#858ca4}
+    .submit{cursor:pointer;border:0;border-radius:12px;background:#967aff;color:#11111a;padding:13px 22px;font:inherit;font-weight:800;min-height:48px}
+    .submit:hover{background:#b19aff}.bottom{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:15px;flex-wrap:wrap}
+    .hint{font-size:13px;color:var(--soft)}.examples{display:flex;flex-wrap:wrap;gap:9px;justify-content:center;margin-top:17px}
+    .example{border:1px solid #4d4b69;border-radius:999px;background:#242339;color:#ddd6fc;padding:7px 13px;font:inherit;font-size:13px;cursor:pointer}
+    .example:hover{border-color:var(--violet)}h2{font-size:25px;margin:36px 0 15px}
+    .results{display:grid;gap:15px}.movie{background:rgba(30,33,52,.9);border:1px solid var(--line);padding:22px;border-radius:17px}
+    .movie-header{display:flex;align-items:start;justify-content:space-between;gap:12px}.movie h3{font-size:22px;letter-spacing:-.3px;margin:0 0 3px}
+    .orig{font-size:13px;color:#aeb2cb}.score{border:1px solid #7664bd;border-radius:999px;background:#332959;color:#e2d9ff;white-space:nowrap;padding:4px 10px;font-size:12px;font-weight:700}
+    .meta{font-size:13px;color:#aca4d8;margin:9px 0 12px}.summary{color:#e1e3ef;margin:10px 0}
+    .not-available{color:#c5c7d5}.notice{font-size:13px;color:#b5b5cb;margin:9px 0}
+    details{font-size:14px;color:#c0c2d2;padding:8px 0}summary{cursor:pointer;color:#aeadf5}details p{margin-bottom:0}
+    .source-link{color:#c0b4ff;text-decoration:none;font-size:14px;font-weight:650}.source-link:hover{text-decoration:underline}
+    footer{border-top:1px solid var(--line);margin-top:42px;padding-top:23px;color:#a4a9c3;font-size:13px}
+    @media(max-width:560px){.page{padding-top:38px}.movie-header{flex-direction:column}.bottom{align-items:stretch}.submit{width:100%}}
+  </style>
+</head>
+<body>
+<main class="page">
+  <header>
+    <div class="eyebrow">BBY261 · Doğal Dil İşleme</div>
+    <h1>🎬 Film <span>Pusulası</span></h1>
+    <p class="lead">Nasıl bir film izlemek istediğini Türkçe anlat. {{ film_sayisi }} film arasından sana uygun olanları bulalım.</p>
+  </header>
+  <section class="search-card">
+    <form method="post">
+      <label for="sorgu">Nasıl bir film arıyorsun?</label>
+      <textarea name="sorgu" id="sorgu" maxlength="500" required placeholder="Örneğin: Uzayda geçen, keşif ve macera dolu bir bilim kurgu filmi istiyorum.">{{ sorgu }}</textarea>
+      <div class="bottom">
+        <span class="hint">Türkçe veya İngilizce yazabilirsin.</span>
+        <button class="submit" type="submit">Bana Film Öner →</button>
+      </div>
+    </form>
+    <div class="examples" aria-label="Örnek aramalar">
+      <button class="example" type="button" data-example="Uzayda geçen bilim kurgu ve macera">🚀 Bilim kurgu</button>
+      <button class="example" type="button" data-example="Romantik ve duygusal bir aşk hikayesi">💜 Romantik</button>
+      <button class="example" type="button" data-example="Hayaletli, gizemli, korkunç bir film">👻 Korku</button>
+      <button class="example" type="button" data-example="Büyü, ejderha ve fantastik macera">🐉 Fantastik</button>
+    </div>
+  </section>
+
+  {% if arama_yapildi %}
+    <section aria-live="polite">
+      <h2>Senin için öneriler</h2>
+      {% if filmler %}
+        <div class="results">
+        {% for film in filmler %}
+          <article class="movie">
+            <div class="movie-header">
+              <div>
+                <h3>{{ loop.index }}. {{ film.ad }}</h3>
+                
+              </div>
+              {% if film.benzerlik is not none %}<span class="score" title="Film açıklamasına dayalı metin benzerliği; beğenme olasılığı değildir.">Metin benzerliği %{{ film.benzerlik }}</span>{% elif film.tur_eslesmesi %}<span class="score" title="Tür filtresini geçti; türle ilgili genel öneri.">İstenen türde ✓</span>{% endif %}
+            </div>
+            <div class="meta">{% if film.yil %}{{ film.yil }} · {% endif %}{{ film.turler | join(' · ') if film.turler else 'Tür bilgisi yok' }}</div>
+            {% if film.aciklama %}
+              <p class="summary">{{ film.aciklama }}</p>
+              {% if film.lisans == 'CC BY-SA 4.0' and film.wikipedia_url %}
+                <p class="notice">Türkçe Vikipedi giriş metni · <a class="source-link" href="{{ film.wikipedia_url }}" target="_blank" rel="noopener noreferrer">Makale ve yazar geçmişi ↗</a> · <a class="source-link" href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a></p>
+              {% endif %}
+            {% else %}
+              <p class="not-available">Bu kayıt için Türkçe açıklama yok. Bilinen türleri: {{ film.turler | join(', ') }}.</p>
+            {% endif %}
+            <a class="source-link" href="{{ film.wikidata_url }}" target="_blank" rel="noopener noreferrer">Wikidata kaynağı ↗</a>
+          </article>
+        {% endfor %}
+        </div>
+      {% else %}
+        <p class="notice">Eşleşen bir film bulunamadı. Başka kelimelerle veya daha kısa bir açıklamayla yeniden deneyebilirsin.</p>
+      {% endif %}
+    </section>
+  {% endif %}
+  <footer>
+    <p>Python · Gensim · TF-IDF · Flask · Wikidata (CC0) + Türkçe Vikipedi (CC BY-SA 4.0)</p>
+    <p>Önce istenen film türleri filtrelenir, sonra film açıklamaları Gensim TF-IDF ile karşılaştırılır. Sadece tür yazarsan açıklama bilgisi daha dolu olan filmler önceliklenir. Metin benzerliği, filmi beğenme olasılığı değildir. Türkçe özet bulunmayan filmlerde içerik uydurulmaz.</p>
+    <p>Türkçe açıklama veya bilgi bulunan film: {{ turkce_ozet_sayisi }} / {{ film_sayisi }}. Daha fazla Türkçe veri eklemek için proje içindeki yönergeleri kullanabilirsin.</p>
+    <p>Film adı ve türler: Wikidata (CC0). Vikipedi metinleri: CC BY-SA 4.0 (film bazında kaynaklı). Bu uygulama TMDB veri setini kullanmaz.</p>
+  </footer>
+</main>
+<script>
+  document.querySelectorAll('[data-example]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      const area = document.getElementById('sorgu');
+      area.value = button.getAttribute('data-example');
+      area.focus();
+    });
+  });
+</script>
+</body>
+</html>
